@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+temp/
+uvicorn.log
+dummy.jpg
+.DS_Store
