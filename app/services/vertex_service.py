@@ -3,6 +3,7 @@ import vertexai
 from app.config import settings
 
 def init_vertex_ai():
+    print(f"[Vertex Service] Initializing Vertex AI with project={settings.project_id}, location={settings.location}")
     vertexai.init(project=settings.project_id, location=settings.location)
 
 def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_number: str, retry_count: int = 0) -> bytes:
@@ -25,6 +26,9 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
     elif retry_count == 2:
         prompt = f"Update the masked region to show only '{new_phone_number}'. The text must blend seamlessly with the original font and style."
 
+    print(f"[Vertex Service] Calling Vertex AI Imagen edit_image API (Retry: {retry_count})...")
+    print(f"[Vertex Service] Prompt used: {prompt}")
+
     response = model.edit_image(
         base_image=base_image,
         mask=mask_image,
@@ -33,8 +37,10 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
         number_of_images=1,
         guidance_scale=21, # can be adjusted
     )
+    print("[Vertex Service] Received response from Vertex AI.")
 
     if not response.images:
+        print("[Vertex Service] Error: Vertex AI returned no images")
         raise Exception("Vertex AI returned no images")
 
     return response.images[0]._image_bytes

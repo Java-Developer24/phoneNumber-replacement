@@ -37,22 +37,23 @@ async def process_image_endpoint(
 
     # Generate unique filenames for debug/temp
     job_id = str(uuid.uuid4())
-    temp_path = os.path.join("temp", f"{job_id}_{image.filename}")
+    print(f"\n[API] Received new request: Job ID {job_id} | Target Replacement Number: {replacement_number} | File: {image.filename}")
 
     try:
         # Process and validate
         processed_bytes = process_and_validate(file_bytes, replacement_number)
 
         # We can optionally save it temporarily, but returning directly is faster.
-        # It asks for "processed image file OR error JSON"
+        print(f"[API] Job ID {job_id} completed successfully. Returning image bytes.")
         return Response(content=processed_bytes, media_type=image.content_type)
 
     except ValueError as ve:
         # Meaning no phone numbers detected
+        print(f"[API] Job ID {job_id} rejected: {ve}")
         return JSONResponse(status_code=400, content={"error": str(ve)})
     except Exception as e:
         # Logs could be added here for failures
-        print(f"Job {job_id} failed: {e}")
+        print(f"[API] Job ID {job_id} failed with exception: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to process image.", "details": str(e)})
 
 # Mount frontend directory

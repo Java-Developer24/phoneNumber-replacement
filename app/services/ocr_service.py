@@ -8,10 +8,13 @@ def perform_ocr(image_bytes: bytes) -> dict:
     client = vision.ImageAnnotatorClient()
     image = vision.Image(content=image_bytes)
 
+    print("[OCR Service] Connecting to GCP Cloud Vision API for DOCUMENT_TEXT_DETECTION...")
     # Use document text detection for structured hierarchy
     response = client.document_text_detection(image=image)
+    print("[OCR Service] Received response from Cloud Vision API.")
 
     if response.error.message:
+        print(f"[OCR Service] Vision API Error: {response.error.message}")
         raise Exception(f"Vision API Error: {response.error.message}")
 
     document = response.full_text_annotation
