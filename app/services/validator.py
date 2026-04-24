@@ -32,24 +32,32 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
     """
     Main pipeline loop with retries.
     """
+    print(f"[Validator] Starting process_and_validate. Target replacement number: {new_phone_number}")
     # 1. Initial OCR & Detection
+    print("[Validator] Step 1: Running initial OCR to detect phone numbers...")
     ocr_result = perform_ocr(image_bytes)
     bounding_boxes = get_phone_bounding_boxes(ocr_result)
 
     if not bounding_boxes:
+        print("[Validator] No phone numbers detected in the original image.")
         raise ValueError("No phone numbers detected in the original image.")
 
     original_phone_numbers = [box["matched_text"] for box in bounding_boxes]
+    print(f"[Validator] Detected phone numbers: {original_phone_numbers}")
+
     width, height = get_image_dimensions(image_bytes)
 
     for retry_count in range(max_retries):
+        print(f"\n[Validator] --- Attempt {retry_count + 1} of {max_retries} ---")
         try:
             # 2. Mask Generation (increase padding slightly on retries)
             padding = 10 + (retry_count * 5)
+            print(f"[Validator] Step 2: Generating mask with padding = {padding}px")
             mask_np = create_mask(width, height, bounding_boxes, padding=padding)
             mask_bytes = cv2_to_bytes(mask_np)
 
             # 3. Image Editing
+            print("[Validator] Step 3: Dispatching to Vertex AI for image editing...")
             edited_image_bytes = edit_image_with_vertex(
                 image_bytes=image_bytes,
                 mask_bytes=mask_bytes,
@@ -58,14 +66,17 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
             )
 
             # 4. Validation
+            print("[Validator] Step 4: Validating edited image via OCR...")
             is_valid = validate_edit(edited_image_bytes, original_phone_numbers, new_phone_number)
 
             if is_valid:
+                print("[Validator] Validation SUCCESS. Returning processed image.")
                 return edited_image_bytes
 
-            print(f"Validation failed on retry {retry_count}. Retrying...")
+            print(f"[Validator] Validation FAILED on attempt {retry_count + 1}. OCR output did not match expectations.")
 
         except Exception as e:
-            print(f"Error during processing on retry {retry_count}: {e}")
+            print(f"[Validator] Error during attempt {retry_count + 1}: {e}")
 
+    print("[Validator] Failed to successfully replace phone numbers after maximum retries.")
     raise Exception("Failed to successfully replace phone numbers after maximum retries.")

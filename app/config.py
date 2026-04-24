@@ -15,4 +15,7 @@ settings = Settings()
 
 # Set GOOGLE_APPLICATION_CREDENTIALS in env so google client libraries pick it up
 if settings.google_application_credentials:
+    print(f"[Config] Found GOOGLE_APPLICATION_CREDENTIALS. Setting environment variable to point to: {settings.google_application_credentials}")
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+else:
+    print("[Config] WARNING: google_application_credentials is empty. GCP API calls may fail.")
