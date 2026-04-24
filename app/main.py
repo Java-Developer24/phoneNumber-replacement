@@ -1,10 +1,21 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.services.validator import process_and_validate
 import uuid
 import os
 
 app = FastAPI(title="Phone Number Replacer AI")
+
+# Allow CORS for frontend interaction
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Ensure temp directory exists
 os.makedirs("temp", exist_ok=True)
@@ -43,3 +54,7 @@ async def process_image_endpoint(
         # Logs could be added here for failures
         print(f"Job {job_id} failed: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to process image.", "details": str(e)})
+
+# Mount frontend directory
+os.makedirs("frontend", exist_ok=True)
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

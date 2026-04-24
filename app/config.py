@@ -8,6 +8,8 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore" # ignore env vars not defined in the class
 
 settings = Settings()
 

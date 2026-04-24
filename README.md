@@ -17,11 +17,16 @@ This is a production-ready Python backend system that automates replacing phone 
    ```
 
 2. **Configure Environment Variables:**
-   Create a `.env` file in the root directory (an example is provided).
-   Set the following variables:
+   Create a `.env` file in the root directory (you can copy `.env.example`).
+   You must add the following variables into your `.env` file for the AI services to authenticate properly:
    ```env
+   # Path to the downloaded GCP Service Account JSON key
    GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account.json
+
+   # Your Google Cloud Project ID (e.g. "my-awesome-project-12345")
    PROJECT_ID=your-google-cloud-project-id
+
+   # The GCP region where you want to run Vertex AI (e.g. "us-central1")
    LOCATION=us-central1
    ```
 
@@ -32,9 +37,16 @@ Start the FastAPI server using `uvicorn`:
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Testing Steps
+## Testing the Frontend
 
-You can test the application using Swagger UI or Postman/cURL.
+1. Ensure the server is running.
+2. Open your web browser and navigate to `http://localhost:8000`.
+3. Use the web interface to upload an image and input a replacement phone number.
+4. The frontend will communicate with the backend API and display the original alongside the newly generated processed image!
+
+## API Testing Steps
+
+You can also test the backend application directly using Swagger UI or Postman/cURL.
 
 **Using Swagger UI:**
 1. Navigate to `http://localhost:8000/docs` in your browser.
