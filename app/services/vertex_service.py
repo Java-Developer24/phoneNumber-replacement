@@ -2,6 +2,26 @@ from google import genai
 from google.genai import types
 from app.config import settings
 
+import google.genai.models as models
+
+# --- SDK MONKEY PATCH START ---
+# The google-genai 0.3.0 SDK converts MaskReferenceImage.reference_image to "referenceImage" in JSON payload.
+# However, the Vertex API expects it as "mask": {"image": {"bytesBase64Encoded": "..."}}.
+# Without this patch, the API throws a 400 INVALID_ARGUMENT: Mask image is missing error.
+_original_converter = models._ReferenceImageAPI_to_vertex
+
+def _patched_ReferenceImageAPI_to_vertex(api_client, from_object, parent_object=None):
+    to_object = _original_converter(api_client, from_object, parent_object)
+    # Rewrite the referenceImage key to mask for Mask Reference Images
+    if to_object.get("referenceType") == "REFERENCE_TYPE_MASK" and "referenceImage" in to_object:
+        to_object["mask"] = {
+            "image": {"bytesBase64Encoded": to_object.pop("referenceImage").get("bytesBase64Encoded")}
+        }
+    return to_object
+
+models._ReferenceImageAPI_to_vertex = _patched_ReferenceImageAPI_to_vertex
+# --- SDK MONKEY PATCH END ---
+
 def init_vertex_ai():
     print(f"[Vertex Service] Initializing GenAI Client with project={settings.project_id}, location={settings.location}")
     # Using the new Google GenAI SDK
@@ -41,6 +61,15 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
         reference_image=types.Image(image_bytes=image_bytes)
     )
 
+    # Create the mask reference image from bytes
+    mask_ref_image = types.MaskReferenceImage(
+        reference_id=1, # Must match the reference_id of the base image it applies to
+        reference_image=types.Image(image_bytes=mask_bytes),
+        config=types.MaskReferenceConfig(
+            mask_mode="MASK_MODE_USER_PROVIDED"
+        )
+    )
+
     # Prompt adjustments based on retry_count to give varied results if validation fails
     # Simulating the mask by instructing the model to edit ONLY the phone number.
     prompt = f"Identify the phone number in this image and replace it exactly with this text: '{new_phone_number}'. Ensure the background, font style, color, alignment, and size remain exactly the same as the original. Do not modify any other part of the image."
@@ -58,7 +87,7 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
         response = client.models.edit_image(
             model=model_name,
             prompt=prompt,
-            reference_images=[raw_ref_image],
+            reference_images=[raw_ref_image, mask_ref_image],
             config=types.EditImageConfig(
                 edit_mode="EDIT_MODE_INPAINT_INSERTION",
                 number_of_images=1,
