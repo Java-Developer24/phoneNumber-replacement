@@ -1,8 +1,10 @@
 import re
+import os
+import uuid
 from app.services.ocr_service import perform_ocr
 from app.services.phone_detector import get_phone_bounding_boxes
 from app.services.mask_service import create_mask
-from app.services.vertex_service import edit_image_with_vertex
+from app.services.sd_service import call_sd_api
 from app.utils.image_utils import get_image_dimensions, cv2_to_bytes
 
 def validate_edit(edited_image_bytes: bytes, original_phone_numbers: list, new_phone_number: str) -> bool:
@@ -57,13 +59,34 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
             mask_bytes = cv2_to_bytes(mask_np)
 
             # 3. Image Editing
-            print("[Validator] Step 3: Dispatching to Vertex AI for image editing...")
-            edited_image_bytes = edit_image_with_vertex(
-                image_bytes=image_bytes,
-                mask_bytes=mask_bytes,
-                new_phone_number=new_phone_number,
-                retry_count=retry_count
-            )
+            print("[Validator] Step 3: Dispatching to external Stable Diffusion API for image editing...")
+
+            # Create temp files for the external API call
+            temp_id = str(uuid.uuid4())
+            temp_image_path = os.path.join("temp", f"input_{temp_id}.png")
+            temp_mask_path = os.path.join("temp", f"mask_{temp_id}.png")
+
+            try:
+                with open(temp_image_path, "wb") as f:
+                    f.write(image_bytes)
+                with open(temp_mask_path, "wb") as f:
+                    f.write(mask_bytes)
+
+                output_path = call_sd_api(
+                    image_path=temp_image_path,
+                    mask_path=temp_mask_path,
+                    new_number=new_phone_number
+                )
+
+                # Read the edited image back into bytes
+                with open(output_path, "rb") as f:
+                    edited_image_bytes = f.read()
+
+            finally:
+                # Cleanup temp files
+                for path in [temp_image_path, temp_mask_path, os.path.join("temp", "output.png")]:
+                    if os.path.exists(path):
+                        os.remove(path)
 
             # 4. Validation
             print("[Validator] Step 4: Validating edited image via OCR...")
