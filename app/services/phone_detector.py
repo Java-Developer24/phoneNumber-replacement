@@ -21,26 +21,19 @@ def is_phone_number(text: str) -> bool:
 
     return False
 
-def extract_phone_numbers_from_text(full_text: str):
+def extract_phone_numbers_from_text(full_text: str) -> list:
     """Find all valid phone numbers in a block of text."""
-    matches = []
+    # Replace line breaks with spaces
+    normalized_text = full_text.replace('\n', ' ')
 
-    # phonenumbers matcher
-    for match in phonenumbers.PhoneNumberMatcher(full_text, "US"):
-        matches.append(match.raw_string)
+    # Use exact regex required
+    pattern = r'\b\d{10}\b'
 
-    # If phonenumbers missed something, we can try regex
-    pattern = r'(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}'
-    regex_matches = re.finditer(pattern, full_text)
-    for rm in regex_matches:
-        raw_str = rm.group()
-        if raw_str not in matches:
-            # We want to be somewhat careful not to just match random numbers,
-            # but for this specific application, if it looks like a phone number, it's likely meant to be replaced.
-            if sum(c.isdigit() for c in raw_str) >= 7: # at least 7 digits
-                matches.append(raw_str)
+    # Find all matches and use set to remove duplicates
+    matches = re.findall(pattern, normalized_text)
+    unique_matches = list(set(matches))
 
-    return matches
+    return unique_matches
 
 def get_phone_bounding_boxes(ocr_result: dict) -> list:
     """

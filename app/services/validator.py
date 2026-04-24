@@ -5,7 +5,7 @@ from app.services.ocr_service import perform_ocr
 from app.services.phone_detector import get_phone_bounding_boxes
 from app.services.mask_service import create_mask
 from app.services.sd_service import call_sd_api
-from app.utils.image_utils import get_image_dimensions, cv2_to_bytes
+from app.utils.image_utils import get_image_dimensions, cv2_to_bytes, bytes_to_cv2, resize_to_512
 
 def validate_edit(edited_image_bytes: bytes, original_phone_numbers: list, new_phone_number: str) -> bool:
     """
@@ -49,14 +49,24 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
 
     width, height = get_image_dimensions(image_bytes)
 
+    # Base image resizing
+    base_img_np = bytes_to_cv2(image_bytes)
+    base_img_512 = resize_to_512(base_img_np)
+    base_image_bytes_512 = cv2_to_bytes(base_img_512)
+
+    padding_steps = [0, 5, 10]
+
     for retry_count in range(max_retries):
         print(f"\n[Validator] --- Attempt {retry_count + 1} of {max_retries} ---")
         try:
             # 2. Mask Generation (increase padding slightly on retries)
-            padding = 10 + (retry_count * 5)
+            padding = padding_steps[retry_count] if retry_count < len(padding_steps) else 10
             print(f"[Validator] Step 2: Generating mask with padding = {padding}px")
             mask_np = create_mask(width, height, bounding_boxes, padding=padding)
-            mask_bytes = cv2_to_bytes(mask_np)
+
+            # Mask resizing
+            mask_np_512 = resize_to_512(mask_np)
+            mask_bytes_512 = cv2_to_bytes(mask_np_512)
 
             # 3. Image Editing
             print("[Validator] Step 3: Dispatching to external Stable Diffusion API for image editing...")
@@ -68,9 +78,9 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
 
             try:
                 with open(temp_image_path, "wb") as f:
-                    f.write(image_bytes)
+                    f.write(base_image_bytes_512)
                 with open(temp_mask_path, "wb") as f:
-                    f.write(mask_bytes)
+                    f.write(mask_bytes_512)
 
                 output_path = call_sd_api(
                     image_path=temp_image_path,
