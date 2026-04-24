@@ -3,6 +3,7 @@ from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.services.validator import process_and_validate
+from app.config import settings
 import uuid
 import os
 
