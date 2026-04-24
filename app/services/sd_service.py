@@ -19,7 +19,7 @@ def call_sd_api(image_path: str, mask_path: str, new_number: str) -> str:
     # Ensure temp directory exists
     os.makedirs("temp", exist_ok=True)
 
-    formatted_prompt = f"Replace the text inside the masked region with exactly {new_number}.\nThe output must contain only this number.\nKeep font style, size, spacing, alignment, and background identical.\nDo not generate new text styles.\nDo not modify anything outside the masked region."
+    formatted_prompt = "Remove the text inside the masked region completely.\nFill it with a matching background.\nDo not add any new text.\nDo not modify anything outside the masked region."
 
     print(f"[SD Service] Calling Stable Diffusion Inpainting API...")
     print(f"[SD Service] Prompt: {formatted_prompt}")
