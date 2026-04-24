@@ -1,5 +1,6 @@
 fastapi==0.115.6
 google-cloud-vision==3.13.0
+google-genai==0.3.0
 google-cloud-aiplatform==1.76.0
 opencv-python-headless==4.10.0.84
 phonenumbers==8.13.52

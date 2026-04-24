@@ -72,3 +72,10 @@ To achieve >90% accuracy in real-world scenarios:
 - **OCR Enhancements**: Pre-process noisy images (e.g. binarization, de-skewing) before passing them to the Vision API to improve detection accuracy of split numbers.
 - **Model Tuning**: Vertex AI Imagen prompts are currently static (with slight variations on retries). Integrating dynamic prompt generation that assesses the image context (e.g., detecting background color and passing it to the prompt) will yield better blending.
 - **Validation Strictness**: The OCR validation currently strips spaces. For exact layout preservation checking, we could check the bounding box dimensions of the newly inserted text against the old text.
+
+## Limitations of GenAI SDK vs Old Vertex AI Imagen API
+
+The codebase has been migrated to use the `google-genai` SDK and the `imagen-3.0-capability-001` model. This introduces a few known limitations regarding editing operations compared to the older SDK:
+
+- **Mask-based editing is simulated**: The old API natively supported sending an explicit binary OpenCV mask (`mask=mask_image`) to strictly define bounding boxes for edits. The new GenAI API's approach relies heavily on prompt engineering and reference images to infer the edit region.
+- Because OpenCV masks are ignored by the backend calls under the new SDK, there may be instances where Imagen 3 modifies text outside of the intended bounding box. The prompt specifically instructs the model to "Identify the phone number in this image and replace it... Do not modify any other part of the image" to limit these regressions.
