@@ -2,13 +2,11 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import cv2
 
-def draw_text_on_image(image_path: str, bbox: dict, new_number: str) -> None:
+def draw_text_on_image(img: Image.Image, bbox: dict, new_number: str) -> Image.Image:
     """
-    Draws the new phone number onto the image at the specified bounding box.
+    Draws the new phone number onto the PIL image at the specified bounding box.
     Uses PIL to draw text exactly at (x1, y1) scaled to bbox height.
     """
-    # Open image
-    img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     x1 = int(bbox["min_x"])
@@ -55,5 +53,4 @@ def draw_text_on_image(image_path: str, bbox: dict, new_number: str) -> None:
     # Draw text at top-left of bbox
     draw.text((x1, y1), new_number, fill=text_color, font=font)
 
-    # Save image back
-    img.save(image_path)
+    return img

@@ -1,12 +1,14 @@
 import re
 import os
-import uuid
+import cv2
+import numpy as np
+from io import BytesIO
+from PIL import Image
 from app.services.ocr_service import perform_ocr
 from app.services.phone_detector import get_phone_bounding_boxes
 from app.services.mask_service import create_mask
-from app.services.sd_service import call_sd_api
 from app.services.text_service import draw_text_on_image
-from app.utils.image_utils import get_image_dimensions, cv2_to_bytes, bytes_to_cv2, resize_to_512
+from app.utils.image_utils import get_image_dimensions, cv2_to_bytes, bytes_to_cv2
 
 def validate_edit(edited_image_bytes: bytes, original_phone_numbers: list, new_phone_number: str) -> bool:
     """
@@ -50,17 +52,8 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
 
     width, height = get_image_dimensions(image_bytes)
 
-    # Base image resizing
+    # Load original image array for inpainting (no resizing)
     base_img_np = bytes_to_cv2(image_bytes)
-    base_img_512 = resize_to_512(base_img_np)
-    base_image_bytes_512 = cv2_to_bytes(base_img_512)
-
-    # Calculate resizing scale and offset so we can map bounding boxes accurately for drawing later
-    scale = min(512 / width, 512 / height)
-    new_w = int(width * scale)
-    new_h = int(height * scale)
-    x_offset = (512 - new_w) // 2
-    y_offset = (512 - new_h) // 2
 
     padding_steps = [0, 5, 10]
 
@@ -72,51 +65,23 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
             print(f"[Validator] Step 2: Generating mask with padding = {padding}px")
             mask_np = create_mask(width, height, bounding_boxes, padding=padding)
 
-            # Mask resizing
-            mask_np_512 = resize_to_512(mask_np)
-            mask_bytes_512 = cv2_to_bytes(mask_np_512)
+            # 3. Image Editing via OpenCV Inpainting
+            print("[Validator] Step 3: Inpainting image using cv2.INPAINT_TELEA...")
+            inpainted_img = cv2.inpaint(base_img_np, mask_np, 3, cv2.INPAINT_TELEA)
 
-            # 3. Image Editing
-            print("[Validator] Step 3: Dispatching to external Stable Diffusion API for image editing...")
+            # Convert to PIL for drawing
+            inpainted_img_rgb = cv2.cvtColor(inpainted_img, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(inpainted_img_rgb)
 
-            # Create temp files for the external API call
-            temp_id = str(uuid.uuid4())
-            temp_image_path = os.path.join("temp", f"input_{temp_id}.png")
-            temp_mask_path = os.path.join("temp", f"mask_{temp_id}.png")
+            # Draw new phone number(s) onto the inpainted image
+            print("[Validator] Step 3.5: Drawing new text onto inpainted image...")
+            for box in bounding_boxes:
+                pil_image = draw_text_on_image(pil_image, box, new_phone_number)
 
-            try:
-                with open(temp_image_path, "wb") as f:
-                    f.write(base_image_bytes_512)
-                with open(temp_mask_path, "wb") as f:
-                    f.write(mask_bytes_512)
-
-                output_path = call_sd_api(
-                    image_path=temp_image_path,
-                    mask_path=temp_mask_path,
-                    new_number=new_phone_number
-                )
-
-                # Draw new phone number(s) onto the SD-cleaned image
-                print("[Validator] Step 3.5: Drawing new text onto cleaned image...")
-                for box in bounding_boxes:
-                    # Map the original bounding box to the 512x512 scaled and offset image
-                    scaled_box = {
-                        "min_x": (box["min_x"] * scale) + x_offset,
-                        "min_y": (box["min_y"] * scale) + y_offset,
-                        "max_x": (box["max_x"] * scale) + x_offset,
-                        "max_y": (box["max_y"] * scale) + y_offset
-                    }
-                    draw_text_on_image(output_path, scaled_box, new_phone_number)
-
-                # Read the fully edited and drawn image back into bytes
-                with open(output_path, "rb") as f:
-                    edited_image_bytes = f.read()
-
-            finally:
-                # Cleanup temp files
-                for path in [temp_image_path, temp_mask_path, os.path.join("temp", "output.png")]:
-                    if os.path.exists(path):
-                        os.remove(path)
+            # Convert the final PIL image back into bytes for validation and output
+            img_byte_arr = BytesIO()
+            pil_image.save(img_byte_arr, format='PNG')
+            edited_image_bytes = img_byte_arr.getvalue()
 
             # 4. Validation
             print("[Validator] Step 4: Validating edited image via OCR...")
