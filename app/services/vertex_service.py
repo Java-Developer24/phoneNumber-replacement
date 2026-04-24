@@ -2,26 +2,6 @@ from google import genai
 from google.genai import types
 from app.config import settings
 
-import google.genai.models as models
-
-# --- SDK MONKEY PATCH START ---
-# The google-genai 0.3.0 SDK converts MaskReferenceImage.reference_image to "referenceImage" in JSON payload.
-# However, the Vertex API expects it as "mask": {"image": {"bytesBase64Encoded": "..."}}.
-# Without this patch, the API throws a 400 INVALID_ARGUMENT: Mask image is missing error.
-_original_converter = models._ReferenceImageAPI_to_vertex
-
-def _patched_ReferenceImageAPI_to_vertex(api_client, from_object, parent_object=None):
-    to_object = _original_converter(api_client, from_object, parent_object)
-    # Rewrite the referenceImage key to mask for Mask Reference Images
-    if to_object.get("referenceType") == "REFERENCE_TYPE_MASK" and "referenceImage" in to_object:
-        to_object["mask"] = {
-            "image": {"bytesBase64Encoded": to_object.pop("referenceImage").get("bytesBase64Encoded")}
-        }
-    return to_object
-
-models._ReferenceImageAPI_to_vertex = _patched_ReferenceImageAPI_to_vertex
-# --- SDK MONKEY PATCH END ---
-
 def init_vertex_ai():
     print(f"[Vertex Service] Initializing GenAI Client with project={settings.project_id}, location={settings.location}")
     # Using the new Google GenAI SDK
@@ -47,8 +27,10 @@ def edit_image(input_path: str, mask_path: str, new_number: str, output_path: st
 def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_number: str, retry_count: int = 0) -> bytes:
     """
     Use Google GenAI SDK with Imagen 3 to edit the image based on a prompt.
-    NOTE: The old mask-based editing is not supported. Mask bytes are ignored.
-    Behavior is simulated using prompt engineering.
+    NOTE: Using EDIT_MODE_DEFAULT to simulate mask-based editing via prompt engineering,
+    as explicit MaskReferenceImage integration with USER_PROVIDED masks causes
+    undocumented payload failures ("Mask image is missing" / "Image needed") on the Vertex API side
+    when using the google-genai 0.3.0 SDK.
     """
     client = init_vertex_ai()
 
@@ -59,15 +41,6 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
     raw_ref_image = types.RawReferenceImage(
         reference_id=1,
         reference_image=types.Image(image_bytes=image_bytes)
-    )
-
-    # Create the mask reference image from bytes
-    mask_ref_image = types.MaskReferenceImage(
-        reference_id=1, # Must match the reference_id of the base image it applies to
-        reference_image=types.Image(image_bytes=mask_bytes),
-        config=types.MaskReferenceConfig(
-            mask_mode="MASK_MODE_USER_PROVIDED"
-        )
     )
 
     # Prompt adjustments based on retry_count to give varied results if validation fails
@@ -87,9 +60,9 @@ def edit_image_with_vertex(image_bytes: bytes, mask_bytes: bytes, new_phone_numb
         response = client.models.edit_image(
             model=model_name,
             prompt=prompt,
-            reference_images=[raw_ref_image, mask_ref_image],
+            reference_images=[raw_ref_image],
             config=types.EditImageConfig(
-                edit_mode="EDIT_MODE_INPAINT_INSERTION",
+                edit_mode="EDIT_MODE_DEFAULT",
                 number_of_images=1,
                 guidance_scale=21.0,
                 include_rai_reason=True
