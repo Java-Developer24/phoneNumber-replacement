@@ -76,7 +76,7 @@ def process_and_validate(image_bytes: bytes, new_phone_number: str, max_retries:
             # Draw new phone number(s) onto the inpainted image
             print("[Validator] Step 3.5: Drawing new text onto inpainted image...")
             for box in bounding_boxes:
-                pil_image = draw_text_on_image(pil_image, box, new_phone_number)
+                pil_image = draw_text_on_image(pil_image, base_img_np, box, new_phone_number)
 
             # Convert the final PIL image back into bytes for validation and output
             img_byte_arr = BytesIO()
